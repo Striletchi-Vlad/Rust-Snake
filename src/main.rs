@@ -144,17 +144,25 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
-fn spawn_tiles(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // let grass_handle = asset_server.load("iarba_64x64.png");
-    let grass_handle = asset_server.load("1.png");
+fn spawn_tiles(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+) {
+    let texture_handle = asset_server.load("grass_72x24.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
     for j in 0..ARENA_WIDTH {
         for i in 0..ARENA_HEIGHT {
             commands
-                .spawn(SpriteBundle {
-                    texture:grass_handle.clone(),
-
-                    ..Default::default()
-                })
+                .spawn((SpriteSheetBundle {
+                    texture_atlas: texture_atlas_handle.clone(),
+                    ..default()
+                },
+                AnimationTimer(Timer::from_seconds(0.3, TimerMode::Repeating)),
+                ))
                 .insert(Position { x:j as i32, y:i as i32})
                 .insert(Size::square(1.0));
 
@@ -168,9 +176,9 @@ fn spawn_snake(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>,) {
     
-    let texture_handle = asset_server.load("test.png");
+    let texture_handle = asset_server.load("chardown96x24.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 4, 1, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
 
     *segments = SnakeSegments(vec![
@@ -179,7 +187,7 @@ fn spawn_snake(
                 texture_atlas: texture_atlas_handle,
                 ..default()
             },
-            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+            AnimationTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
             ))
             .insert(SnakeHead {
                 direction: Direction::Up,
@@ -378,7 +386,7 @@ fn main() {
     .insert_resource(LastTailPosition::default())
     .insert_resource(FreePosition::default())
     .add_startup_system(setup_camera)
-    //.add_startup_system(spawn_tiles)
+    .add_startup_system(spawn_tiles)
     .add_startup_system(spawn_snake)
     .add_startup_system(spawn_food)
     .add_system(exit_system)
@@ -386,7 +394,7 @@ fn main() {
     .add_system(animate_snake_head)
     .add_system_set(
         SystemSet::new()
-            .with_run_criteria(FixedTimestep::step(0.150))
+            .with_run_criteria(FixedTimestep::step(0.30))
             .with_system(snake_movement)
             .with_system(snake_eating.after(snake_movement))
             .with_system(snake_growth.after(snake_eating)),
