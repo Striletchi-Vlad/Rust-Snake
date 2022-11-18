@@ -1,5 +1,6 @@
-use bevy::ecs::query;
 use rand::prelude::SliceRandom;
+use std::env;
+use std::path::PathBuf;
 
 use bevy::prelude::*;
 use bevy::time::FixedTimestep;
@@ -13,6 +14,31 @@ const FOOD_COLOR: Color = Color::rgb(1.0, 0.0, 1.0);
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
 
+fn load_resources(
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
+) {
+    
+    let base_dir = option_env!("CARGO_MANIFEST_DIR").map_or_else(|| {
+        let exe_path = env::current_exe().expect("Failed to get exe path");
+        exe_path.parent.expect("Failed to get exe dir").to_path_buf()
+    }, |crate_dir| {
+        PathBuf::new();
+    });
+
+    let resources_dir = base_dir.join("resources");
+
+    // for each resource
+    // load(resources_dir.join("my_image.png"));
+    
+    let texture_handle = asset_server.load(resources_dir.join("test.png"));
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
+    
+}
+
 struct GrowthEvent;
 struct GameOverEvent;
 
@@ -21,6 +47,9 @@ struct GameOverEvent;
 struct SnakeHead{
     direction: Direction,
 }
+
+#[derive(Component, Deref, DerefMut)]
+struct AnimationTimer(Timer);
 
 #[derive(Component)]
 struct SnakeSegment;
@@ -31,6 +60,9 @@ struct SnakeSegments(Vec<Entity>);
 
 #[derive(Component)]
 struct Food;
+
+#[derive(Component)]
+struct GrassTile;
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 struct Position {
@@ -77,7 +109,36 @@ impl Direction {
     }
 }
 
+fn animate_snake_head(
+    time: Res<Time>,
+    texture_atlases: Res<Assets<TextureAtlas>>,
+    mut query: Query<(
+        &mut AnimationTimer,
+        &mut TextureAtlasSprite,
+        &Handle<TextureAtlas>,
+    )>,
+) {
+    for (mut timer, mut sprite, texture_atlas_handle) in &mut query {
+        timer.tick(time.delta());
+        if timer.just_finished() {
+            let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
+            sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
+        }
+    }
+}
+
 fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
+    let window = windows.get_primary().unwrap();
+    for (sprite_size, mut transform) in q.iter_mut() {
+        transform.scale = Vec3::new(
+            sprite_size.width / ARENA_WIDTH as f32 * window.width() as f32 / 24.0,
+            sprite_size.height / ARENA_HEIGHT as f32 * window.height() as f32 / 24.0,
+            1.0,
+        );
+    }
+}
+
+fn size_scaling_background(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
     let window = windows.get_primary().unwrap();
     for (sprite_size, mut transform) in q.iter_mut() {
         transform.scale = Vec3::new(
@@ -107,16 +168,43 @@ fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
 
-fn spawn_snake(mut commands: Commands, mut segments: ResMut<SnakeSegments>) {
+fn spawn_tiles(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // let grass_handle = asset_server.load("iarba_64x64.png");
+    let grass_handle = asset_server.load("1.png");
+    for j in 0..ARENA_WIDTH {
+        for i in 0..ARENA_HEIGHT {
+            commands
+                .spawn(SpriteBundle {
+                    texture:grass_handle.clone(),
+
+                    ..Default::default()
+                })
+                .insert(Position { x:j as i32, y:i as i32})
+                .insert(Size::square(1.0));
+
+        }
+    }
+}
+
+fn spawn_snake(
+    mut commands: Commands,
+    mut segments: ResMut<SnakeSegments>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,) {
+    
+    let texture_handle = asset_server.load("test.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+
     *segments = SnakeSegments(vec![
         commands
-            .spawn(SpriteBundle {
-                sprite: Sprite {
-                    color: SNAKE_HEAD_COLOR,
-                    ..default()
-                },
+            .spawn((SpriteSheetBundle {
+                texture_atlas: texture_atlas_handle.clone(),
                 ..default()
-            })
+            },
+            AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+            ))
             .insert(SnakeHead {
                 direction: Direction::Up,
             })
@@ -125,6 +213,7 @@ fn spawn_snake(mut commands: Commands, mut segments: ResMut<SnakeSegments>) {
             .insert(Size::square(1.0))
             .id(),
         spawn_segment(commands, Position { x: 3, y: 2 }),
+        
         
     ]);
 }
@@ -140,7 +229,7 @@ fn spawn_segment(mut commands: Commands, position: Position) -> Entity {
         })
         .insert(SnakeSegment)
         .insert(position)
-        .insert(Size::square(0.65))
+        .insert(Size::square(24.0))
         .id()
 }
 fn spawn_food(mut commands: Commands){
@@ -157,7 +246,7 @@ fn spawn_food(mut commands: Commands){
             x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
             y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
         })
-        .insert(Size::square(0.8));
+        .insert(Size::square(24.0));
         
 }
 
@@ -295,7 +384,7 @@ fn food_spawner(
         //     y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
         // })
         .insert(free_position.0.unwrap())
-        .insert(Size::square(0.8));
+        .insert(Size::square(24.0));
     }   
 }
 
@@ -313,10 +402,12 @@ fn main() {
     .insert_resource(LastTailPosition::default())
     .insert_resource(FreePosition::default())
     .add_startup_system(setup_camera)
+    //.add_startup_system(spawn_tiles)
     .add_startup_system(spawn_snake)
     .add_startup_system(spawn_food)
     .add_system(exit_system)
     .add_system(snake_movement_input.before(snake_movement))
+    .add_system(animate_snake_head)
     .add_system_set(
         SystemSet::new()
             .with_run_criteria(FixedTimestep::step(0.150))
@@ -324,6 +415,12 @@ fn main() {
             .with_system(snake_eating.after(snake_movement))
             .with_system(snake_growth.after(snake_eating)),
     )
+    // .add_startup_system_set_to_stage(
+    //     StartupStage::PostStartup,
+    //     SystemSet::new()
+    //         //.with_system(position_translation)
+    //         .with_system(size_scaling_background),
+    // )
     .add_system_set_to_stage(
         CoreStage::PostUpdate,
         SystemSet::new()
@@ -346,7 +443,9 @@ fn main() {
           ..default()
         },
         ..default()
-      }))
+      }, 
+    )
+    .set(ImagePlugin::default_nearest()))
     .run();
 
 }
