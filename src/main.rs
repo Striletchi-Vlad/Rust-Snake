@@ -14,30 +14,6 @@ const FOOD_COLOR: Color = Color::rgb(1.0, 0.0, 1.0);
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
 
-fn load_resources(
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    asset_server: Res<AssetServer>,
-) {
-    
-    let base_dir = option_env!("CARGO_MANIFEST_DIR").map_or_else(|| {
-        let exe_path = env::current_exe().expect("Failed to get exe path");
-        exe_path.parent.expect("Failed to get exe dir").to_path_buf()
-    }, |crate_dir| {
-        PathBuf::new();
-    });
-
-    let resources_dir = base_dir.join("resources");
-
-    // for each resource
-    // load(resources_dir.join("my_image.png"));
-    
-    let texture_handle = asset_server.load(resources_dir.join("test.png"));
-    let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
-
-    
-}
 
 struct GrowthEvent;
 struct GameOverEvent;
@@ -200,7 +176,7 @@ fn spawn_snake(
     *segments = SnakeSegments(vec![
         commands
             .spawn((SpriteSheetBundle {
-                texture_atlas: texture_atlas_handle.clone(),
+                texture_atlas: texture_atlas_handle,
                 ..default()
             },
             AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
