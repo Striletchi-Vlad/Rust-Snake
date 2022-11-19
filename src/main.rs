@@ -196,41 +196,57 @@ fn spawn_snake(
             .insert(Position { x: 3, y: 3 })
             .insert(Size::square(1.0))
             .id(),
-        spawn_segment(commands, Position { x: 3, y: 2 }),
+        spawn_segment(commands, Position { x: 3, y: 2 }, texture_atlases, asset_server),
         
         
     ]);
 }
 
-fn spawn_segment(mut commands: Commands, position: Position) -> Entity {
+fn spawn_segment(
+    mut commands: Commands,
+    position: Position,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
+) -> Entity {
+
+    let texture_handle = asset_server.load("test.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
     commands
-        .spawn(SpriteBundle {
-            sprite: Sprite {
-                color: SNAKE_SEGMENT_COLOR,
-                ..default()
-            },
-            ..default()
-        })
+        .spawn((SpriteSheetBundle {
+                    texture_atlas: texture_atlas_handle.clone(),
+                    ..default()
+                },
+                AnimationTimer(Timer::from_seconds(0.3, TimerMode::Repeating)),
+                ))
         .insert(SnakeSegment)
         .insert(position)
-        .insert(Size::square(24.0))
+        .insert(Size::square(1.0))
         .id()
 }
-fn spawn_food(mut commands: Commands){
+fn spawn_food(
+    mut commands: Commands,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
+){
+    let texture_handle = asset_server.load("floatingrock72x24.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
     commands
-        .spawn(SpriteBundle {
-            sprite: Sprite {
-                color: FOOD_COLOR,
-                ..default()
-            },
+        .spawn((SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle.clone(),
             ..default()
-        })
+        },
+        AnimationTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
+        ))
         .insert(Food)
         .insert(Position {
             x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
             y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
         })
-        .insert(Size::square(24.0));
+        .insert(Size::square(1.0));
         
 }
 
@@ -322,9 +338,11 @@ fn snake_growth(
     last_tail_position: Res<LastTailPosition>,
     mut segments: ResMut<SnakeSegments>,
     mut growth_reader: EventReader<GrowthEvent>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
 ) {
     if growth_reader.iter().next().is_some() {
-        segments.push(spawn_segment(commands, last_tail_position.0.unwrap()));
+        segments.push(spawn_segment(commands, last_tail_position.0.unwrap(), texture_atlases, asset_server));
     }
 }
 
@@ -352,23 +370,29 @@ fn food_spawner(
     mut commands: Commands,
     free_position: Res<FreePosition>,
     mut growth_event_listener: EventReader<GrowthEvent>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    asset_server: Res<AssetServer>,
 ) {
+    let texture_handle = asset_server.load("floatingrock72x24.png");
+    let texture_atlas =
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+        
     if growth_event_listener.iter().next().is_some(){
         commands
-        .spawn(SpriteBundle {
-            sprite: Sprite {
-                color: FOOD_COLOR,
-                ..default()
-            },
+        .spawn((SpriteSheetBundle {
+            texture_atlas: texture_atlas_handle.clone(),
             ..default()
-        })
+        },
+        AnimationTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
+        ))
         .insert(Food)
         // .insert(Position {
         //     x: (random::<f32>() * ARENA_WIDTH as f32) as i32,
         //     y: (random::<f32>() * ARENA_HEIGHT as f32) as i32,
         // })
         .insert(free_position.0.unwrap())
-        .insert(Size::square(24.0));
+        .insert(Size::square(1.0));
     }   
 }
 
