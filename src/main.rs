@@ -1,16 +1,12 @@
 use rand::prelude::SliceRandom;
-use std::env;
-use std::path::PathBuf;
+use rand::distributions::{Distribution, Uniform};
 
-use bevy::prelude::*;
+use bevy::{prelude::*, audio};
 use bevy::time::FixedTimestep;
 use bevy::app::AppExit;
 use rand::prelude::random;
 use bevy::ecs::system::Query;
 
-const SNAKE_HEAD_COLOR: Color = Color::rgb(0.7, 0.7, 0.7);
-const SNAKE_SEGMENT_COLOR: Color = Color::rgb(0.3, 0.3, 0.3);
-const FOOD_COLOR: Color = Color::rgb(1.0, 0.0, 1.0);
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
 
@@ -23,6 +19,15 @@ struct GameOverEvent;
 struct SnakeHead{
     direction: Direction,
 }
+
+#[derive(Component)]
+struct SnakeHeadAnimation{
+    direction: Direction,
+    texture_handle: Handle<TextureAtlas>,
+}
+
+#[derive(Component, Default, Deref, DerefMut, Resource)]
+struct SnakeHeadAnimations(Vec<SnakeHeadAnimation>);
 
 #[derive(Component, Deref, DerefMut)]
 struct AnimationTimer(Timer);
@@ -85,6 +90,52 @@ impl Direction {
     }
 }
 
+fn load_resources(
+    mut snake_head_animations: ResMut<SnakeHeadAnimations>,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>)
+{
+    let texture_handle_up = asset_server.load("chardown96x24.png");
+    let texture_atlas_up =
+        TextureAtlas::from_grid(texture_handle_up, Vec2::new(24.0, 24.0), 4, 1, None, None);
+    snake_head_animations.push(SnakeHeadAnimation{
+        direction: Direction::Up,
+        texture_handle: texture_atlases.add(texture_atlas_up),
+    });
+
+    let texture_handle_down = asset_server.load("chardown96x24.png");
+    let texture_atlas_down =
+        TextureAtlas::from_grid(texture_handle_down, Vec2::new(24.0, 24.0), 4, 1, None, None);
+    snake_head_animations.push(SnakeHeadAnimation{
+        direction: Direction::Down,
+        texture_handle: texture_atlases.add(texture_atlas_down),
+    });
+
+    let texture_handle_left = asset_server.load("chardown96x24.png");
+    let texture_atlas_left =
+        TextureAtlas::from_grid(texture_handle_left, Vec2::new(24.0, 24.0), 4, 1, None, None);
+    snake_head_animations.push(SnakeHeadAnimation{
+        direction: Direction::Left,
+        texture_handle: texture_atlases.add(texture_atlas_left),
+    });
+
+    let texture_handle_right = asset_server.load("chardown96x24.png");
+    let texture_atlas_right =
+        TextureAtlas::from_grid(texture_handle_right, Vec2::new(24.0, 24.0), 4, 1, None, None);
+    snake_head_animations.push(SnakeHeadAnimation{
+        direction: Direction::Right,
+        texture_handle: texture_atlases.add(texture_atlas_right),
+    });
+}
+
+fn play_music(asset_server: Res<AssetServer>, audio: Res<Audio>) {
+    audio.play_with_settings(
+        asset_server.load("background_music.ogg"),
+        PlaybackSettings::LOOP.with_volume(0.75),
+    );
+}
+
+
 fn animate_snake_head(
     time: Res<Time>,
     texture_atlases: Res<Assets<TextureAtlas>>,
@@ -92,16 +143,27 @@ fn animate_snake_head(
         &mut AnimationTimer,
         &mut TextureAtlasSprite,
         &Handle<TextureAtlas>,
+        Option<&SnakeHead>,
     )>,
 ) {
-    for (mut timer, mut sprite, texture_atlas_handle) in &mut query {
+    for (mut timer, mut sprite, texture_atlas_handle, snakehead) in &mut query {
         timer.tick(time.delta());
         if timer.just_finished() {
             let texture_atlas = texture_atlases.get(texture_atlas_handle).unwrap();
             sprite.index = (sprite.index + 1) % texture_atlas.textures.len();
+            
+            if let Some(snakehead) = snakehead {
+                match snakehead.direction {
+                    Direction::Down => sprite.index = (sprite.index % 4),
+                    Direction::Up => sprite.index = (sprite.index % 4) + 4,
+                    Direction::Left => sprite.index = (sprite.index % 4) + 8,
+                    Direction::Right => sprite.index = (sprite.index % 4) + 12,
+                }
+            }
         }
     }
 }
+
 
 fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
     let window = windows.get_primary().unwrap();
@@ -109,17 +171,6 @@ fn size_scaling(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
         transform.scale = Vec3::new(
             sprite_size.width / ARENA_WIDTH as f32 * window.width() as f32 / 24.0,
             sprite_size.height / ARENA_HEIGHT as f32 * window.height() as f32 / 24.0,
-            1.0,
-        );
-    }
-}
-
-fn size_scaling_background(windows: Res<Windows>, mut q: Query<(&Size, &mut Transform)>) {
-    let window = windows.get_primary().unwrap();
-    for (sprite_size, mut transform) in q.iter_mut() {
-        transform.scale = Vec3::new(
-            sprite_size.width / ARENA_WIDTH as f32 * window.width() as f32,
-            sprite_size.height / ARENA_HEIGHT as f32 * window.height() as f32,
             1.0,
         );
     }
@@ -149,15 +200,67 @@ fn spawn_tiles(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
-    let texture_handle = asset_server.load("grass_72x24.png");
-    let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+    let texture_handle_1 = asset_server.load("grass1_72x24.png");
+    let texture_atlas_1 =
+        TextureAtlas::from_grid(texture_handle_1, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_1 = texture_atlases.add(texture_atlas_1);
 
+    let texture_handle_2 = asset_server.load("grass2_72x24.png");
+    let texture_atlas_2 =
+        TextureAtlas::from_grid(texture_handle_2, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_2 = texture_atlases.add(texture_atlas_2);
+
+    let texture_handle_3 = asset_server.load("grass3_72x24.png");
+    let texture_atlas_3 =
+        TextureAtlas::from_grid(texture_handle_3, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_3 = texture_atlases.add(texture_atlas_3);
+
+    let texture_handle_4 = asset_server.load("grass4_72x24.png");
+    let texture_atlas_4 =
+        TextureAtlas::from_grid(texture_handle_4, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_4 = texture_atlases.add(texture_atlas_4);
+
+    let texture_handle_5 = asset_server.load("grass5_72x24.png");
+    let texture_atlas_5 =
+        TextureAtlas::from_grid(texture_handle_5, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_5 = texture_atlases.add(texture_atlas_5);
+
+    let texture_handle_6 = asset_server.load("grass6_72x24.png");
+    let texture_atlas_6 =
+        TextureAtlas::from_grid(texture_handle_6, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_6 = texture_atlases.add(texture_atlas_6);
+
+    let texture_handle_7 = asset_server.load("grass7_72x24.png");
+    let texture_atlas_7 =
+        TextureAtlas::from_grid(texture_handle_7, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_7 = texture_atlases.add(texture_atlas_7);
+
+    let texture_handle_8 = asset_server.load("grass8_72x24.png");
+    let texture_atlas_8 =
+        TextureAtlas::from_grid(texture_handle_8, Vec2::new(24.0, 24.0), 3, 1, None, None);
+    let texture_atlas_handle_8 = texture_atlases.add(texture_atlas_8);
+
+    let mut rng = rand::thread_rng();
+    let die = Uniform::from(1..8);
+    let mut throw;
+    let mut texture_atlas_handle;
     for j in 0..ARENA_WIDTH {
         for i in 0..ARENA_HEIGHT {
+            throw = die.sample(&mut rng);
+            match throw{
+                1 => texture_atlas_handle =  texture_atlas_handle_1.clone(),
+                2 => texture_atlas_handle =  texture_atlas_handle_2.clone(),
+                3 => texture_atlas_handle =  texture_atlas_handle_3.clone(),
+                4 => texture_atlas_handle =  texture_atlas_handle_4.clone(),
+                5 => texture_atlas_handle =  texture_atlas_handle_5.clone(),
+                6 => texture_atlas_handle =  texture_atlas_handle_6.clone(),
+                7 => texture_atlas_handle =  texture_atlas_handle_7.clone(),
+                8 => texture_atlas_handle =  texture_atlas_handle_8.clone(),
+                _ => texture_atlas_handle =  texture_atlas_handle_1.clone(),
+            };
             commands
                 .spawn((SpriteSheetBundle {
+                    
                     texture_atlas: texture_atlas_handle.clone(),
                     ..default()
                 },
@@ -173,13 +276,13 @@ fn spawn_tiles(
 fn spawn_snake(
     mut commands: Commands,
     mut segments: ResMut<SnakeSegments>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    asset_server: Res<AssetServer>,) {
-    
-    let texture_handle = asset_server.load("chardown96x24.png");
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,)
+{
+    let texture_handle = asset_server.load("character96x96.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 4, 1, None, None);
-    let texture_atlas_handle = texture_atlases.add(texture_atlas);
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 4, 4, None, None);
+    let texture_atlas_handle =  texture_atlases.add(texture_atlas);
 
     *segments = SnakeSegments(vec![
         commands
@@ -187,7 +290,7 @@ fn spawn_snake(
                 texture_atlas: texture_atlas_handle,
                 ..default()
             },
-            AnimationTimer(Timer::from_seconds(0.15, TimerMode::Repeating)),
+            AnimationTimer(Timer::from_seconds(0.075, TimerMode::Repeating)),
             ))
             .insert(SnakeHead {
                 direction: Direction::Up,
@@ -209,9 +312,9 @@ fn spawn_segment(
     asset_server: Res<AssetServer>,
 ) -> Entity {
 
-    let texture_handle = asset_server.load("test.png");
+    let texture_handle = asset_server.load("rock24x24.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 1, 1, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
     commands
         .spawn((SpriteSheetBundle {
@@ -338,10 +441,12 @@ fn snake_growth(
     last_tail_position: Res<LastTailPosition>,
     mut segments: ResMut<SnakeSegments>,
     mut growth_reader: EventReader<GrowthEvent>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    texture_atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
 ) {
     if growth_reader.iter().next().is_some() {
+        audio.play(asset_server.load("eat_sound.ogg"));
         segments.push(spawn_segment(commands, last_tail_position.0.unwrap(), texture_atlases, asset_server));
     }
 }
@@ -405,13 +510,16 @@ fn exit_system(mut exit: EventWriter<AppExit>, mut gameover: EventReader<GameOve
 
 fn main() {
     App::new()
+    .insert_resource(SnakeHeadAnimations::default())
     .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
     .insert_resource(SnakeSegments::default())
     .insert_resource(LastTailPosition::default())
     .insert_resource(FreePosition::default())
+    .add_startup_system(load_resources)
     .add_startup_system(setup_camera)
     .add_startup_system(spawn_tiles)
-    .add_startup_system(spawn_snake)
+    .add_startup_system(play_music)
+    .add_startup_system(spawn_snake.after(spawn_tiles))
     .add_startup_system(spawn_food)
     .add_system(exit_system)
     .add_system(snake_movement_input.before(snake_movement))
@@ -423,12 +531,7 @@ fn main() {
             .with_system(snake_eating.after(snake_movement))
             .with_system(snake_growth.after(snake_eating)),
     )
-    // .add_startup_system_set_to_stage(
-    //     StartupStage::PostStartup,
-    //     SystemSet::new()
-    //         //.with_system(position_translation)
-    //         .with_system(size_scaling_background),
-    // )
+
     .add_system_set_to_stage(
         CoreStage::PostUpdate,
         SystemSet::new()
@@ -437,7 +540,6 @@ fn main() {
     )
     .add_system_set(
         SystemSet::new()
-            //.with_run_criteria(FixedTimestep::step(1.0))
             .with_system(empty_position)
             .with_system(food_spawner.after(empty_position)),
     )
@@ -446,8 +548,8 @@ fn main() {
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         window: WindowDescriptor {
             title: "Carriage Snake!".to_string(), 
-            width: 500.0,                 
-            height: 500.0,
+            width: 700.0,                 
+            height: 700.0,
           ..default()
         },
         ..default()
