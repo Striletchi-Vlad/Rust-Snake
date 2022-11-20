@@ -261,7 +261,7 @@ fn spawn_snake(
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,)
 {
-    let texture_handle = asset_server.load("character96x96.png");
+    let texture_handle = asset_server.load("characterhat96x96.png");
     let texture_atlas =
         TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 4, 4, None, None);
     let texture_atlas_handle =  texture_atlases.add(texture_atlas);
@@ -499,9 +499,13 @@ fn play_death_sound(
     mut gameover: EventReader<GameOverEvent>,
     audio: Res<Audio>,
     asset_server: Res<AssetServer>,
+    entities: Query<Entity>,
     mut commands: Commands,
-    ) {
+) {
     if gameover.iter().next().is_some(){
+        for ent in entities.iter() {
+            commands.entity(ent).despawn();
+        }
         audio.play(asset_server.load("death.ogg"));
         commands.spawn(ExitTimer(Timer::from_seconds(1.0, TimerMode::Once)));
     }
