@@ -567,7 +567,7 @@ fn main() {
     .add_event::<ExitEvent>()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         window: WindowDescriptor {
-            title: "Carriage Snake!".to_string(), 
+            title: "Rust Snake!".to_string(), 
             width: 700.0,                 
             height: 700.0,
           ..default()
