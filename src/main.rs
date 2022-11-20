@@ -1,7 +1,9 @@
+use bevy::ecs::query;
 use rand::prelude::SliceRandom;
 use rand::distributions::{Distribution, Uniform};
+use core::time::Duration;
 
-use bevy::{prelude::*, audio};
+use bevy::{prelude::*, audio, time};
 use bevy::time::FixedTimestep;
 use bevy::app::AppExit;
 use rand::prelude::random;
@@ -9,7 +11,7 @@ use bevy::ecs::system::Query;
 
 const ARENA_WIDTH: u32 = 10;
 const ARENA_HEIGHT: u32 = 10;
-
+const MOVEMENT_DURATION: f32 = 0.3;
 
 struct GrowthEvent;
 struct GameOverEvent;
@@ -20,14 +22,16 @@ struct SnakeHead{
     direction: Direction,
 }
 
-#[derive(Component)]
-struct SnakeHeadAnimation{
-    direction: Direction,
-    texture_handle: Handle<TextureAtlas>,
+#[derive(Component, Resource)]
+struct DirectionChangeTimer{
+    //timer that prevents the snake from turning too fast
+    timer: Timer,
 }
 
-#[derive(Component, Default, Deref, DerefMut, Resource)]
-struct SnakeHeadAnimations(Vec<SnakeHeadAnimation>);
+#[derive(Component, Resource)]
+struct SnakeHeadDirection{
+    direction: Direction,
+}
 
 #[derive(Component, Deref, DerefMut)]
 struct AnimationTimer(Timer);
@@ -90,43 +94,12 @@ impl Direction {
     }
 }
 
-fn load_resources(
-    mut snake_head_animations: ResMut<SnakeHeadAnimations>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>)
-{
-    let texture_handle_up = asset_server.load("chardown96x24.png");
-    let texture_atlas_up =
-        TextureAtlas::from_grid(texture_handle_up, Vec2::new(24.0, 24.0), 4, 1, None, None);
-    snake_head_animations.push(SnakeHeadAnimation{
-        direction: Direction::Up,
-        texture_handle: texture_atlases.add(texture_atlas_up),
-    });
-
-    let texture_handle_down = asset_server.load("chardown96x24.png");
-    let texture_atlas_down =
-        TextureAtlas::from_grid(texture_handle_down, Vec2::new(24.0, 24.0), 4, 1, None, None);
-    snake_head_animations.push(SnakeHeadAnimation{
-        direction: Direction::Down,
-        texture_handle: texture_atlases.add(texture_atlas_down),
-    });
-
-    let texture_handle_left = asset_server.load("chardown96x24.png");
-    let texture_atlas_left =
-        TextureAtlas::from_grid(texture_handle_left, Vec2::new(24.0, 24.0), 4, 1, None, None);
-    snake_head_animations.push(SnakeHeadAnimation{
-        direction: Direction::Left,
-        texture_handle: texture_atlases.add(texture_atlas_left),
-    });
-
-    let texture_handle_right = asset_server.load("chardown96x24.png");
-    let texture_atlas_right =
-        TextureAtlas::from_grid(texture_handle_right, Vec2::new(24.0, 24.0), 4, 1, None, None);
-    snake_head_animations.push(SnakeHeadAnimation{
-        direction: Direction::Right,
-        texture_handle: texture_atlases.add(texture_atlas_right),
+fn start_snake_turn_prevention_timer(mut commands: Commands) {
+    commands.insert_resource(DirectionChangeTimer {
+        timer: Timer::from_seconds(MOVEMENT_DURATION, TimerMode::Repeating),
     });
 }
+
 
 fn play_music(asset_server: Res<AssetServer>, audio: Res<Audio>) {
     audio.play_with_settings(
@@ -205,7 +178,7 @@ fn spawn_tiles(
         TextureAtlas::from_grid(texture_handle_1, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_1 = texture_atlases.add(texture_atlas_1);
 
-    let texture_handle_2 = asset_server.load("grass2_72x24.png");
+    let texture_handle_2 = asset_server.load("grass1_72x24.png");
     let texture_atlas_2 =
         TextureAtlas::from_grid(texture_handle_2, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_2 = texture_atlases.add(texture_atlas_2);
@@ -215,12 +188,12 @@ fn spawn_tiles(
         TextureAtlas::from_grid(texture_handle_3, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_3 = texture_atlases.add(texture_atlas_3);
 
-    let texture_handle_4 = asset_server.load("grass2_72x24.png");
+    let texture_handle_4 = asset_server.load("grass6_72x24.png");
     let texture_atlas_4 =
         TextureAtlas::from_grid(texture_handle_4, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_4 = texture_atlases.add(texture_atlas_4);
 
-    let texture_handle_5 = asset_server.load("grass6_72x24.png");
+    let texture_handle_5 = asset_server.load("grass5_72x24.png");
     let texture_atlas_5 =
         TextureAtlas::from_grid(texture_handle_5, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_5 = texture_atlases.add(texture_atlas_5);
@@ -230,12 +203,12 @@ fn spawn_tiles(
         TextureAtlas::from_grid(texture_handle_6, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_6 = texture_atlases.add(texture_atlas_6);
 
-    let texture_handle_7 = asset_server.load("grass2_72x24.png");
+    let texture_handle_7 = asset_server.load("grass7_72x24.png");
     let texture_atlas_7 =
         TextureAtlas::from_grid(texture_handle_7, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_7 = texture_atlases.add(texture_atlas_7);
 
-    let texture_handle_8 = asset_server.load("grass6_72x24.png");
+    let texture_handle_8 = asset_server.load("grass8_72x24.png");
     let texture_atlas_8 =
         TextureAtlas::from_grid(texture_handle_8, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_8 = texture_atlases.add(texture_atlas_8);
@@ -266,6 +239,7 @@ fn spawn_tiles(
                         i as f32 * 24.0,
                         0.0,
                     ),
+                    sprite: TextureAtlasSprite::new(0),
                     ..default()
                 },
                 AnimationTimer(Timer::from_seconds(0.3, TimerMode::Repeating)),
@@ -295,7 +269,7 @@ fn spawn_snake(
                 transform: Transform::from_xyz(
                     3 as f32 * 24.0,
                     3 as f32 * 24.0,
-                    1.0,
+                    5.0,
                 ),
                 ..default()
             },
@@ -309,8 +283,6 @@ fn spawn_snake(
             .insert(Size::square(1.0))
             .id(),
         spawn_segment(commands, Position { x: 3, y: 2 }, texture_atlases, asset_server),
-        
-        
     ]);
 }
 
@@ -362,8 +334,13 @@ fn spawn_food(
         
 }
 
-fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&mut SnakeHead>) {
+fn snake_movement_input(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut heads: Query<&mut SnakeHead>,
+    snake_head_direction: Res<SnakeHeadDirection>,
+) {
     if let Some(mut head) = heads.iter_mut().next() {
+        
         let dir: Direction = if keyboard_input.pressed(KeyCode::Left) {
             Direction::Left
         } else if keyboard_input.pressed(KeyCode::Down) {
@@ -375,9 +352,11 @@ fn snake_movement_input(keyboard_input: Res<Input<KeyCode>>, mut heads: Query<&m
         } else {
             head.direction
         };
-        if dir != head.direction.opposite() {
+  
+        if dir != snake_head_direction.direction.opposite(){
             head.direction = dir;
         }
+
     }
 }
 
@@ -387,6 +366,7 @@ fn snake_movement(
     mut positions: Query<&mut Position>,
     mut last_tail_position: ResMut<LastTailPosition>,
     mut game_over_writer: EventWriter<GameOverEvent>,
+    mut head_dir : ResMut<SnakeHeadDirection>,
 ) {
     if let Some((head_entity, head)) = heads.iter_mut().next() {
         let segment_positions = segments
@@ -394,6 +374,7 @@ fn snake_movement(
             .map(|e| *positions.get_mut(*e).unwrap())
             .collect::<Vec<Position>>();
         let mut head_pos = positions.get_mut(head_entity).unwrap();
+        head_dir.direction = head.direction;
         match &head.direction {
             Direction::Left => {
                 head_pos.x -= 1;
@@ -519,19 +500,19 @@ fn exit_system(mut exit: EventWriter<AppExit>, mut gameover: EventReader<GameOve
 
 fn main() {
     App::new()
-    .insert_resource(SnakeHeadAnimations::default())
     .insert_resource(ClearColor(Color::rgb(0.04, 0.04, 0.04)))
+    .insert_resource(SnakeHeadDirection{direction:Direction::Up})
     .insert_resource(SnakeSegments::default())
     .insert_resource(LastTailPosition::default())
     .insert_resource(FreePosition::default())
-    .add_startup_system(load_resources)
     .add_startup_system(setup_camera)
     .add_startup_system(spawn_tiles)
     .add_startup_system(play_music)
     .add_startup_system(spawn_snake.after(spawn_tiles))
     .add_startup_system(spawn_food)
+    .add_startup_system(start_snake_turn_prevention_timer)
     .add_system(exit_system)
-    .add_system(snake_movement_input.before(snake_movement))
+    .add_system(snake_movement_input.after(start_snake_turn_prevention_timer))
     .add_system(animate_snake_head)
     .add_system_set(
         SystemSet::new()
