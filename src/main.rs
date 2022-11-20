@@ -1,7 +1,8 @@
 use bevy::ecs::query;
 use rand::prelude::SliceRandom;
 use rand::distributions::{Distribution, Uniform};
-use core::time::Duration;
+use std::thread;
+use std::time::Duration;
 
 use bevy::{prelude::*, audio, time};
 use bevy::time::FixedTimestep;
@@ -15,7 +16,7 @@ const MOVEMENT_DURATION: f32 = 0.3;
 
 struct GrowthEvent;
 struct GameOverEvent;
-
+struct ExitEvent;
 
 #[derive(Component)]
 struct SnakeHead{
@@ -27,6 +28,9 @@ struct DirectionChangeTimer{
     //timer that prevents the snake from turning too fast
     timer: Timer,
 }
+
+#[derive(Component, Deref, DerefMut)]
+struct ExitTimer(Timer);
 
 #[derive(Component, Resource)]
 struct SnakeHeadDirection{
@@ -293,16 +297,16 @@ fn spawn_segment(
     asset_server: Res<AssetServer>,
 ) -> Entity {
 
-    let texture_handle = asset_server.load("rock24x24.png");
+    let texture_handle = asset_server.load("floatingrockactive_72x24.png");
     let texture_atlas =
-        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 1, 1, None, None);
+        TextureAtlas::from_grid(texture_handle, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle = texture_atlases.add(texture_atlas);
     commands
         .spawn((SpriteSheetBundle {
                     texture_atlas: texture_atlas_handle.clone(),
                     ..default()
                 },
-                AnimationTimer(Timer::from_seconds(0.3, TimerMode::Repeating)),
+                AnimationTimer(Timer::from_seconds(0.075, TimerMode::Repeating)),
                 ))
         .insert(SnakeSegment)
         .insert(position)
@@ -491,12 +495,32 @@ fn food_spawner(
     }   
 }
 
-fn exit_system(mut exit: EventWriter<AppExit>, mut gameover: EventReader<GameOverEvent>) {
+fn play_death_sound(
+    mut gameover: EventReader<GameOverEvent>,
+    audio: Res<Audio>,
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+    ) {
     if gameover.iter().next().is_some(){
-        exit.send(AppExit);
+        audio.play(asset_server.load("death.ogg"));
+        commands.spawn(ExitTimer(Timer::from_seconds(1.0, TimerMode::Once)));
     }
-    
 }
+
+fn actually_exit(
+    mut exit: EventWriter<AppExit>,
+    time: Res<Time>,
+    mut query: Query<(&mut ExitTimer,)>
+) {
+        for (mut timer,) in query.iter_mut() {
+            timer.tick(time.delta());
+        if timer.just_finished() {
+            exit.send(AppExit);
+        }
+    }
+}
+
+
 
 fn main() {
     App::new()
@@ -511,7 +535,8 @@ fn main() {
     .add_startup_system(spawn_snake.after(spawn_tiles))
     .add_startup_system(spawn_food)
     .add_startup_system(start_snake_turn_prevention_timer)
-    .add_system(exit_system)
+    .add_system(play_death_sound)
+    .add_system(actually_exit)
     .add_system(snake_movement_input.after(start_snake_turn_prevention_timer))
     .add_system(animate_snake_head)
     .add_system_set(
@@ -535,6 +560,7 @@ fn main() {
     )
     .add_event::<GrowthEvent>()
     .add_event::<GameOverEvent>()
+    .add_event::<ExitEvent>()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         window: WindowDescriptor {
             title: "Carriage Snake!".to_string(), 
