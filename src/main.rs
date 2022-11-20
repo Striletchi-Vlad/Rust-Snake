@@ -215,12 +215,12 @@ fn spawn_tiles(
         TextureAtlas::from_grid(texture_handle_3, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_3 = texture_atlases.add(texture_atlas_3);
 
-    let texture_handle_4 = asset_server.load("grass4_72x24.png");
+    let texture_handle_4 = asset_server.load("grass2_72x24.png");
     let texture_atlas_4 =
         TextureAtlas::from_grid(texture_handle_4, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_4 = texture_atlases.add(texture_atlas_4);
 
-    let texture_handle_5 = asset_server.load("grass5_72x24.png");
+    let texture_handle_5 = asset_server.load("grass6_72x24.png");
     let texture_atlas_5 =
         TextureAtlas::from_grid(texture_handle_5, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_5 = texture_atlases.add(texture_atlas_5);
@@ -230,12 +230,12 @@ fn spawn_tiles(
         TextureAtlas::from_grid(texture_handle_6, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_6 = texture_atlases.add(texture_atlas_6);
 
-    let texture_handle_7 = asset_server.load("grass7_72x24.png");
+    let texture_handle_7 = asset_server.load("grass2_72x24.png");
     let texture_atlas_7 =
         TextureAtlas::from_grid(texture_handle_7, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_7 = texture_atlases.add(texture_atlas_7);
 
-    let texture_handle_8 = asset_server.load("grass8_72x24.png");
+    let texture_handle_8 = asset_server.load("grass6_72x24.png");
     let texture_atlas_8 =
         TextureAtlas::from_grid(texture_handle_8, Vec2::new(24.0, 24.0), 3, 1, None, None);
     let texture_atlas_handle_8 = texture_atlases.add(texture_atlas_8);
@@ -260,8 +260,12 @@ fn spawn_tiles(
             };
             commands
                 .spawn((SpriteSheetBundle {
-                    
                     texture_atlas: texture_atlas_handle.clone(),
+                    transform: Transform::from_xyz(
+                        j as f32 * 24.0,
+                        i as f32 * 24.0,
+                        0.0,
+                    ),
                     ..default()
                 },
                 AnimationTimer(Timer::from_seconds(0.3, TimerMode::Repeating)),
@@ -288,6 +292,11 @@ fn spawn_snake(
         commands
             .spawn((SpriteSheetBundle {
                 texture_atlas: texture_atlas_handle,
+                transform: Transform::from_xyz(
+                    3 as f32 * 24.0,
+                    3 as f32 * 24.0,
+                    1.0,
+                ),
                 ..default()
             },
             AnimationTimer(Timer::from_seconds(0.075, TimerMode::Repeating)),
