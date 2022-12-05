@@ -113,7 +113,7 @@ fn play_music(asset_server: Res<AssetServer>, audio: Res<Audio>) {
 }
 
 
-fn animate_snake_head(
+fn animate_eveything(
     time: Res<Time>,
     texture_atlases: Res<Assets<TextureAtlas>>,
     mut query: Query<(
@@ -542,7 +542,7 @@ fn main() {
     .add_system(play_death_sound)
     .add_system(actually_exit)
     .add_system(snake_movement_input.after(start_snake_turn_prevention_timer))
-    .add_system(animate_snake_head)
+    .add_system(animate_eveything)
     .add_system_set(
         SystemSet::new()
             .with_run_criteria(FixedTimestep::step(0.30))
@@ -567,7 +567,7 @@ fn main() {
     .add_event::<ExitEvent>()
     .add_plugins(DefaultPlugins.set(WindowPlugin {
         window: WindowDescriptor {
-            title: "Rust Snake!".to_string(), 
+            title: "Rust Snake!".to_string(),
             width: 700.0,                 
             height: 700.0,
           ..default()
